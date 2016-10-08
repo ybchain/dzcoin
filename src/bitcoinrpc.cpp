@@ -594,7 +594,6 @@ void ListMyCurrencies(Array& ret)
     {
         const CurrencyInfo* curInfo = &(*it).second;
         Object entry;
-        entry.push_back(Pair("id", (int)(curInfo->id)));
         entry.push_back(Pair("name", curInfo->name));
         entry.push_back(Pair("unit", curInfo->unit));
         entry.push_back(Pair("description", curInfo->description));
@@ -1602,16 +1601,13 @@ Value listaddresses(const Array& params, bool fHelp)
     return ret;
 }
 
-void ListCurrency(const CWalletTx& wtx, Array& ret)
+void ListCurrency(const CWalletTx& wtx, Object &entry)
 {
-    Object entry;
     entry.push_back(Pair("fPOI", wtx.currency.fPOI));
     entry.push_back(Pair("name", wtx.currency.name));
     entry.push_back(Pair("unit", wtx.currency.unit));
     entry.push_back(Pair("description", wtx.currency.description));
     entry.push_back(Pair("issuedividespend", wtx.currency.issuedividespend));
-
-    ret.push_back(entry);
 }
 
 void ListTransactions(const CWalletTx& wtx, const string& strAccount, int nMinDepth, bool fLong, Array& ret)
@@ -1629,6 +1625,10 @@ void ListTransactions(const CWalletTx& wtx, const string& strAccount, int nMinDe
     if ((nGeneratedMature+nGeneratedImmature) != 0 && (fAllAccounts || strAccount == ""))
     {
         Object entry;
+        Object currency;
+        ListCurrency(wtx, currency);
+        entry.push_back(Pair("currency", currency));
+
         entry.push_back(Pair("account", string("")));
         entry.push_back(Pair("depth", wtx.GetDepthInMainChain()));
         if (nGeneratedImmature)
@@ -1657,6 +1657,10 @@ void ListTransactions(const CWalletTx& wtx, const string& strAccount, int nMinDe
         BOOST_FOREACH(const PAIRTYPE(CBitcoinAddress, int64)& s, listSent)
         {
             Object entry;
+            Object currency;
+            ListCurrency(wtx, currency);
+            entry.push_back(Pair("currency", currency));
+
             entry.push_back(Pair("account", strSentAccount));
             entry.push_back(Pair("depth", wtx.GetDepthInMainChain()));
             entry.push_back(Pair("address", s.first.ToString()));
@@ -1680,6 +1684,10 @@ void ListTransactions(const CWalletTx& wtx, const string& strAccount, int nMinDe
             if (fAllAccounts || (account == strAccount))
             {
                 Object entry;
+                Object currency;
+                ListCurrency(wtx, currency);
+                entry.push_back(Pair("currency", currency));
+
                 entry.push_back(Pair("account", account));
                 entry.push_back(Pair("depth", wtx.GetDepthInMainChain()));
                 entry.push_back(Pair("address", r.first.ToString()));
@@ -1925,10 +1933,6 @@ Value gettransaction(const Array& params, bool fHelp)
         entry.push_back(Pair("fee", ValueFromAmount(nFee)));
 
     WalletTxToJSON(pwalletMain->mapWallet[hash], entry);
-
-    Array currency;
-    ListCurrency(pwalletMain->mapWallet[hash], currency);
-    entry.push_back(Pair("currency", currency));
 
     Array details;
     ListTransactions(pwalletMain->mapWallet[hash], "*", 0, false, details);
