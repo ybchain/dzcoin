@@ -4384,6 +4384,7 @@ void IssueOldCurrency(CWallet *pwallet)
     {
         for (std::map<uint256, CTransaction>::iterator mi = mempool.mapTx.begin(); mi != mempool.mapTx.end(); ++mi)
         {
+            bool isBreak = false;
             CTransaction& tx = (*mi).second;
             if (/*!fIsIssuingCurrency && */tx.currency.fPOI && pwalletMain->mapWallet.count(tx.GetHash()))
             {
@@ -4396,8 +4397,49 @@ void IssueOldCurrency(CWallet *pwallet)
                 printf("IssueOldCurrency: Hash %s\n", wtx.GetHash().ToString().c_str());
                 printf("IssueOldCurrency: nNet: %d, nFee: %d, amount: %d\n", nNet, nFee, amount);
                 if (amount > 0)
-                    MineCurrency(tx.currency, amount * tx.currency.issuedividespend, pwallet);
+                {
+                    //MineCurrency(tx.currency, amount * tx.currency.issuedividespend, pwallet);
+                    int64 mineAmount = amount * tx.currency.issuedividespend;
+                    printf("Started to issue currency, currency amount: %d\n", mineAmount);
+                    // Each thread has its own key and counter
+                    CDefaultKey reservekey(pwallet);
+                    bool fProofOfStake = false;
+                    bool fIssuing = true;
+                    if (mineAmount > 0 && IsReadyToMine(pwallet))
+                    {
+                        while (true)
+                        {
+                            //
+                            // Create new block
+                            //
+                            auto_ptr<CBlock> pblock(CreateNewBlock(reservekey, pwallet, tx.currency, fProofOfStake, mineAmount, fIssuing));
+                            if (!pblock.get())
+                                continue;
+
+                            if (!pblock->SignBlock(*pwalletMain))
+                            {
+                                SetMintWarning(strMintMessage);
+                                continue;
+                            }
+                            SetMintWarning("");
+                            SetThreadPriority(THREAD_PRIORITY_NORMAL);
+                            bool checkOk = CheckWork(pblock.get(), *pwalletMain, reservekey);
+                            SetThreadPriority(THREAD_PRIORITY_LOWEST);
+                            if (checkOk)
+                            {
+                                isBreak = true;
+                                //Issue Ok
+                                printf("Issue currency ok.");
+                                break;
+                            }
+                            else
+                                continue;
+                        }
+                    }
+                }
             }
+            if (isBreak)
+                break;
         }
         Sleep(1000);
     }
